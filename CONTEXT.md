@@ -1,0 +1,118 @@
+# Context Glossary
+
+## Terms
+
+- Integration Primary Control Surface: In Home Assistant, the user-facing control model is one Climate entity per physical AC unit.
+- Controller Device Role: The Netatmo Smart AC Controller is represented as a backing/diagnostic device, not the primary automation surface.
+- Authentication Model: Access to Netatmo is authorized with OAuth2 Authorization Code and refresh tokens.
+- Credential UX Model: Users connect accounts through Home Assistant application credentials and interactive sign-in, not by static account passwords or manual long-lived tokens.
+- Reauthorization Expectation: When authorization is invalid, the integration asks the user to reauthorize through Home Assistant.
+- Device Mapping Model: A Netatmo controller is represented as one Home Assistant device.
+- Entity Mapping Model: A controllable AC unit or zone is represented as one Home Assistant climate entity.
+- Identity Stability Rule: Climate entity identity is derived from stable provider-side identifiers so entity identity persists across restarts and reauthorization.
+- Capability Advertisement Rule: Each climate entity advertises only modes and features that are actually supported by that AC unit.
+- Unsupported Command Rule: Commands requesting unsupported modes or features fail explicitly with clear user-visible errors.
+- No Silent Coercion Rule: Unsupported requests are never automatically remapped to a different mode.
+- State Source of Truth: Reported climate state is derived from confirmed provider state or explicit provider acknowledgment, not from unverified local assumptions.
+- Pending Update Rule: A short-lived in-memory pending state may exist for responsiveness, but unresolved pending state expires and is not treated as confirmed.
+- Consistency Priority: Automation correctness is prioritized over temporary UI smoothness when these are in tension.
+- Write Reliability Model: Commands are treated as at-most-once operations from the integration perspective.
+- Retry Boundary Rule: Retries are allowed only for clearly retryable transport failures and are bounded.
+- Unknown Outcome Rule: If command outcome is uncertain, do not blindly replay writes; reconcile by refreshing provider state.
+- Primary Sync Model: Entity state synchronization is polling-first.
+- Polling Behavior Rule: Polling uses adaptive intervals and performs targeted immediate refresh after successful writes.
+- Push Feature Stance: Push or webhook updates are considered optional future enhancement and not required for initial correctness.
+- Provider Access Constraint: Device control and data access happen through Netatmo Cloud APIs, not direct local device access.
+- Token Storage Constraint: Only OAuth access and refresh tokens are stored; account credentials are never stored.
+- Scope Minimization Rule: The integration requests only scopes required for the AC control use case.
+- Per-User Rate Constraint: API usage respects Netatmo per-user limits of 50 requests per 10 seconds and 500 requests per hour.
+- Per-App Rate Constraint: API usage respects Netatmo app-level limits and quotas, including burst and hourly quotas.
+- Rate-Aware Polling Rule: Polling cadence and write-triggered refresh behavior are tuned to remain safely below published provider limits.
+- Internal Budget Rule: The integration enforces a conservative per-account request budget with reserved headroom for user-triggered commands.
+- Throttling Rule: Burst requests are smoothed with client-side throttling.
+- Backoff Rule: 429 and transient server failures trigger exponential backoff before further polling attempts.
+- Freshness Model: Entities expose last confirmed state with freshness awareness.
+- Degradation Rule: During short provider outages or limit windows, entities remain available with stale data semantics.
+- Unavailability Threshold Rule: If state freshness exceeds a hard threshold, entities are marked unavailable.
+- Unit Normalization Rule: Temperature values are normalized against provider-native precision and converted for Home Assistant presentation based on the user's unit system.
+- Range Validation Rule: Write requests are validated against per-device minimum and maximum temperature constraints.
+- Step Validation Rule: Write requests respect per-device temperature step increments and reject invalid values explicitly.
+- Canonical OFF Semantics: Home Assistant OFF represents explicit power-off intent.
+- OFF Mapping Rule: OFF intent is mapped to provider/device-specific power-off behavior without substituting other HVAC modes.
+- Automation Semantics Priority: Power state semantics are preserved consistently across brands to keep automation logic predictable.
+- Startup Restore Rule: On Home Assistant restart, entities may expose last known state as temporary stale state.
+- Startup Sync Gate: Control actions are gated until initial provider synchronization or timeout handling is reached.
+- Startup Safety Priority: Early-session control correctness is prioritized over immediate post-restart interactivity.
+- Account Model: The integration supports multiple Netatmo accounts in one Home Assistant instance.
+- Config Entry Boundary: Each Netatmo account is represented by a separate config entry.
+- Isolation Rule: Tokens, refresh lifecycle, polling coordinators, and entities are isolated per config entry.
+- Unique Identity Composition: Entity unique identity is derived from immutable provider identifiers plus account/config-entry context.
+- Name Independence Rule: Human-readable names are never used as unique identity components.
+- Collision Safety Rule: Identity composition guarantees uniqueness even when multiple accounts expose similarly named assets.
+- Diagnostics Intent: The integration exposes account-scoped operational diagnostics for troubleshooting.
+- Diagnostics Contents Rule: Diagnostics include sync freshness, last error category, throttling/backoff status, and request budget telemetry.
+- Privacy Redaction Rule: Diagnostics exclude tokens, raw credentials, and sensitive personal/location identifiers by default.
+- Retrofit Control Model: The Netatmo Smart AC Controller acts as an IR retrofit control layer for existing AC units.
+- Capability Variability Rule: Exposed controls and telemetry can vary per AC pairing and training profile.
+- Capability Discovery Rule: Supported features are discovered per paired unit and treated as authoritative for entity capabilities.
+- Core Capability Set: Typical available controls and telemetry include target temperature, current temperature, fan speed, operating mode, and current humidity, with optional features such as swing when supported.
+- Training Responsibility Boundary: AC training and pairing are performed in the Netatmo Control app, not in Home Assistant.
+- Discovery Source of Truth: Home Assistant capability discovery is driven only by what the Netatmo API exposes for each paired unit.
+- API Exposure Guardrail: Controls or telemetry not exposed by API are not synthesized or guessed by the integration.
+- Topology Endpoint Limitation: /api/homesdata is primarily topology and configuration-oriented and should not be assumed to provide authoritative live HVAC runtime state.
+- Discovery Sequencing Rule: Topology discovery and live capability/state discovery are separate steps and may require different endpoints.
+- Empirical Probe Finding: Broad homesdata probing can miss HVAC signals, but targeted homesdata by home_id can expose AC-related modules and cooling configuration fields.
+- Observed Module Types: The observed module types (NAMain, NAModule1, NAModule3) indicate non-AC payloads in current API visibility.
+- Confirmed AC Module Marker: Module type NAC is confirmed as an AC controller surface in home topology payloads.
+- Mixed-Product Home Rule: A single home can include weather, camera, and AC modules simultaneously; discovery must classify by module type, not by home-level assumptions.
+- Cooling Config Visibility: homesdata can expose cooling_mode, cooling schedules, cooling_setpoint fields, and per-module fan settings for NAC-linked rooms.
+- AC Entity Eligibility Rule: Climate entities are created only for modules with module type NAC.
+- Non-AC Exclusion Rule: Non-NAC modules in the same home are excluded from climate entity creation.
+- Capability Enrichment Rule: NAC-linked room and schedule data are used to enrich supported features for the climate entity.
+- NAC Status Endpoint Pattern: Runtime AC status is retrieved via homestatus scoped by home_id with device_types=NAC filtering.
+- Runtime State Fields (Confirmed): Current room temperature, room humidity, room reachability, cooling setpoint mode/temperature/time bounds, and module fan mode/speed are available in homestatus for NAC contexts.
+- Runtime State Source Rule: For live climate attributes, homestatus is authoritative over schedule-only topology data.
+- Conservative Mode Advertisement Rule: The climate entity advertises only off and cool by default for NAC unless runtime API evidence confirms additional modes for that specific unit.
+- Progressive Capability Expansion Rule: Additional modes are enabled only when positively confirmed via API for the same device.
+- Transparency Requirement: Capability gating behavior is documented in integration user documentation and surfaced in diagnostics to explain why some modes may be absent.
+- Fan Mapping Rule: Netatmo fan_mode and fan_speed are mapped to Home Assistant climate fan modes with deterministic per-device mapping.
+- Fan Capability Advertisement Rule: Only fan modes/speeds confirmed for the specific device are advertised.
+- Auto Fan Exposure Rule: Auto fan mode is exposed only when API evidence confirms true automatic fan behavior for the device.
+- Override Availability Rule: Manual capability overrides are available only as an advanced opt-in feature.
+- Override Safety Default: Auto-discovery remains authoritative, and overrides default to capability reduction (hiding) rather than speculative capability addition.
+- Expert Force-Enable Rule: Force-enabling unverified capabilities is allowed only behind explicit expert warning and does not bypass runtime command validation.
+- Override Recovery Rule: Users can reset capability overrides back to auto-detected defaults in one action.
+- Netatmo Schedule Scope Rule (v1): Netatmo schedule creation, editing, and switching are out of scope for control actions and treated as read-only context.
+- Automation Ownership Rule: Time-based control behavior is expected to be authored in Home Assistant automations, not through Netatmo schedule management APIs.
+- Schedule Interpretation Rule: Existing Netatmo schedules may influence observed device state, but the integration does not mutate schedule artifacts in v1.
+- Schedule Conflict Policy Status: Detailed conflict-resolution semantics between HA automations and Netatmo schedules are intentionally deferred.
+- Future Neutralization Option: A later phase may offer an opt-in strategy that applies an integration-managed neutral schedule to minimize schedule-driven overrides.
+- Deferred Scope Guardrail: Neutral-schedule takeover is not part of v1 and requires explicit future design validation.
+- Service Surface Rule (v1): Integration control is primarily exposed through standard Home Assistant climate features.
+- Custom Service Scope (v1): Custom control services are deferred unless a proven capability gap exists.
+- Diagnostic Service Exception: A safe force-refresh diagnostic service is allowed in v1 for troubleshooting and reconciliation.
+- Onboarding Selection Flow: Setup follows a Select Homes then Select Devices flow.
+- Onboarding Default Rule: Discovered homes and NAC devices are preselected by default, with explicit user confirmation.
+- Reconfiguration Expansion Rule: Users can add additional homes or NAC devices later through integration reconfiguration.
+- Deselection Lifecycle Rule: When a previously enabled home or NAC device is deselected, its entities are disabled rather than removed.
+- Data Retention Intent: Disable-first lifecycle preserves entity history and dashboard references.
+- Reactivation Identity Rule: Re-selecting a previously disabled NAC device reactivates the same entity identity.
+- Reactivation Continuity Intent: Reactivation preserves automation bindings and historical continuity.
+- Command Feedback Rule: User-initiated commands enter a short pending state while confirmation is awaited.
+- Unconfirmed Timeout Rule: If confirmation is not received within timeout, the integration surfaces an explicit not-confirmed outcome.
+- Effective State Rule: Last confirmed provider state remains authoritative until a new state is confirmed.
+- Baseline Poll Cadence (v1): NAC runtime status polling uses a 90-second baseline interval.
+- Post-Command Burst Cadence: After user control actions, polling temporarily increases to approximately 8-10 seconds for up to 60 seconds.
+- Cadence Decay Rule: After burst window completion, polling decays back to baseline cadence.
+- Stale Threshold Rule: Entity state is marked stale after 3 minutes without confirmed refresh.
+- Unavailable Threshold Rule: Entity is marked unavailable after 10 minutes without confirmed refresh.
+- Manual Override Duration Rule: Manual cooling setpoint overrides are time-bounded by default.
+- Duration Configuration Rule: Override duration is configurable at integration-entry level.
+- Default Override Duration: Manual override duration defaults to 60 minutes.
+- Duration Scope Rule (v1): The default manual override duration is configured per integration entry, not per device.
+- Automation Use-Case: Users may run HA automations that apply cooling setpoint and mode changes for a temporary duration window.
+- Per-Command Duration Override Rule: Service calls can optionally override the per-entry default duration for a single command.
+- Duration Override Priority: Explicit per-command duration takes precedence over per-entry default for that one action.
+- Visibility Gap Rule: If API visibility does not expose AC-capable module types or controls, the integration cannot infer or control AC features and must surface a clear configuration diagnostic.
+- Module Type Interpretation: NAMain, NAModule1, and NAModule3 are documented Weather product module types, not Smart AC controller capability markers.
+- Product-Surface Ambiguity Rule: Presence of home topology alone does not imply Home + Control AC visibility for the current token.
