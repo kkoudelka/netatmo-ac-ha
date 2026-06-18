@@ -1,0 +1,12 @@
+{
+  "domain": "netatmo_ac",
+  "name": "Netatmo Smart AC Controller",
+  "version": "1.0.0",
+  "config_flow": true,
+  "dependencies": ["application_credentials"],
+  "requirements": [],
+  "iot_class": "cloud_polling",
+  "documentation": "https://github.com/your-org/netatmo-ac-ha",
+  "issue_tracker": "https://github.com/your-org/netatmo-ac-ha/issues",
+  "codeowners": []
+}
