@@ -43,3 +43,7 @@ CONF_TEMP_SENSORS = "temp_sensors"             # {module_id: [entity_id, ...]} â
 
 # --- Command pending timeout ---
 PENDING_TIMEOUT = 90   # seconds; matches one baseline poll cycle
+
+# --- Bundled assets (served via static path registered in __init__.py) ---
+ASSETS_URL_PATH = "/api/netatmo_ac/assets"
+ENTITY_PICTURE_URL = f"{ASSETS_URL_PATH}/ac_controller.jpg"

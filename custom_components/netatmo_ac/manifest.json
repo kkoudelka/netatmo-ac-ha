@@ -3,7 +3,7 @@
   "name": "Netatmo Smart AC Controller",
   "version": "1.0.0",
   "config_flow": true,
-  "dependencies": ["application_credentials"],
+  "dependencies": ["application_credentials", "http"],
   "requirements": [],
   "iot_class": "cloud_polling",
   "documentation": "https://github.com/kkoudelka/netatmo-ac-ha",

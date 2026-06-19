@@ -47,6 +47,7 @@ from .const import (
     CONF_TEMP_SENSORS,
     DEFAULT_OVERRIDE_DURATION,
     DOMAIN,
+    ENTITY_PICTURE_URL,
     PENDING_TIMEOUT,
     STALE_THRESHOLD,
     UNAVAILABLE_THRESHOLD,
@@ -112,6 +113,7 @@ class NetatmoAcClimate(CoordinatorEntity[NacCoordinator], ClimateEntity):
     _attr_has_entity_name = True
     _attr_name = None  # use device name as entity name
     _attr_temperature_unit = UnitOfTemperature.CELSIUS
+    _attr_entity_picture = ENTITY_PICTURE_URL
 
     # Conservative advertisement: off + cool only by default
     # (CONTEXT: Conservative Mode Advertisement Rule)

@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from typing import Any
 
+from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import Platform
 from homeassistant.core import HomeAssistant
@@ -11,12 +13,24 @@ from homeassistant.exceptions import ConfigEntryAuthFailed, ConfigEntryNotReady
 from homeassistant.helpers import config_entry_oauth2_flow
 
 from .api import NetatmoApiClient, NetatmoAuthError, NetatmoApiError
-from .const import CONF_HOME_IDS, CONF_MODULE_IDS, DOMAIN
+from .const import ASSETS_URL_PATH, CONF_HOME_IDS, CONF_MODULE_IDS, DOMAIN
 from .coordinator import NacCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
 PLATFORMS = [Platform.CLIMATE]
+
+
+async def async_setup(hass: HomeAssistant, config: dict) -> bool:  # NOSONAR - HA setup contract requires async def
+    """One-time setup: serve the bundled device photo over HTTP."""
+    await hass.http.async_register_static_paths([
+        StaticPathConfig(
+            url_path=ASSETS_URL_PATH,
+            path=str(Path(__file__).parent / "assets"),
+            cache_headers=True,
+        )
+    ])
+    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
