@@ -38,6 +38,10 @@ class NetatmoRateLimitError(NetatmoApiError):
     """Raised on 429 — caller should back off."""
 
 
+# Provider fan_mode string → numeric fan_speed (observed from devtools: 1=low, 2=medium, 3=high)
+NETATMO_FAN_MODE_TO_SPEED: dict[str, int] = {"low": 1, "medium": 2, "high": 3}
+
+
 # ---------------------------------------------------------------------------
 # Data models
 # ---------------------------------------------------------------------------

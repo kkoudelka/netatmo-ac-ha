@@ -21,6 +21,7 @@ import logging
 import time
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.components.climate import (
     ClimateEntity,
     ClimateEntityFeature,
@@ -28,6 +29,8 @@ from homeassistant.components.climate import (
     HVACMode,
 )
 from homeassistant.components.climate.const import (
+    ATTR_FAN_MODE,
+    ATTR_HVAC_MODE,
     FAN_HIGH,
     FAN_LOW,
     FAN_MEDIUM,
@@ -36,19 +39,24 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import ATTR_TEMPERATURE, UnitOfTemperature
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+from homeassistant.helpers import config_validation as cv, entity_platform
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import NacModule, NacState, NetatmoApiClient, NetatmoApiError, NetatmoAuthError
 from .const import (
+    ATTR_DURATION,
     CONF_MODULE_IDS,
     CONF_OVERRIDE_DURATION,
     CONF_TEMP_SENSORS,
     DEFAULT_OVERRIDE_DURATION,
     DOMAIN,
     ENTITY_PICTURE_URL,
+    MAX_OVERRIDE_DURATION_MINUTES,
+    MIN_OVERRIDE_DURATION_MINUTES,
     PENDING_TIMEOUT,
+    SERVICE_SET_STATE,
     STALE_THRESHOLD,
     UNAVAILABLE_THRESHOLD,
 )
@@ -70,6 +78,20 @@ _HA_FAN_TO_SPEED: dict[str, int] = {
     FAN_MEDIUM: 2,
     FAN_HIGH: 3,
 }
+
+# Combined override service schema (CONTEXT: Combined Override Service Exception)
+SET_STATE_SCHEMA = vol.All(
+    cv.has_at_least_one_key(ATTR_HVAC_MODE, ATTR_TEMPERATURE, ATTR_FAN_MODE),
+    vol.Schema({
+        vol.Optional(ATTR_HVAC_MODE): vol.In([HVACMode.OFF, HVACMode.COOL]),
+        vol.Optional(ATTR_TEMPERATURE): vol.Coerce(float),
+        vol.Optional(ATTR_FAN_MODE): vol.In([FAN_LOW, FAN_MEDIUM, FAN_HIGH]),
+        vol.Optional(ATTR_DURATION): vol.All(
+            vol.Coerce(int),
+            vol.Range(min=MIN_OVERRIDE_DURATION_MINUTES, max=MAX_OVERRIDE_DURATION_MINUTES),
+        ),
+    }),
+)
 
 
 async def async_setup_entry(  # NOSONAR - HA platform contract requires async def
@@ -101,6 +123,13 @@ async def async_setup_entry(  # NOSONAR - HA platform contract requires async de
         )
 
     async_add_entities(entities)
+
+    platform = entity_platform.async_get_current_platform()
+    platform.async_register_entity_service(
+        SERVICE_SET_STATE,
+        SET_STATE_SCHEMA,
+        "async_netatmo_set_state",
+    )
 
 
 class NetatmoAcClimate(CoordinatorEntity[NacCoordinator], ClimateEntity):
@@ -308,8 +337,10 @@ class NetatmoAcClimate(CoordinatorEntity[NacCoordinator], ClimateEntity):
         temp = kwargs.get(ATTR_TEMPERATURE)
         if temp is None:
             return
+        await self._send_command(mode="manual", temp=self._validate_temperature(temp))
 
-        # Range and step validation (CONTEXT: Range Validation Rule, Step Validation Rule)
+    def _validate_temperature(self, temp: float) -> float:
+        """Snap and validate a requested temperature (CONTEXT: Range Validation Rule, Step Validation Rule)."""
         if not (self._module.temp_min <= temp <= self._module.temp_max):
             raise ServiceValidationError(
                 f"Temperature {temp} °C is outside the supported range "
@@ -322,10 +353,10 @@ class NetatmoAcClimate(CoordinatorEntity[NacCoordinator], ClimateEntity):
                 f"Temperature {temp} °C does not align with step {step} °C. "
                 f"Nearest valid value: {snapped} °C."
             )
+        return snapped
 
-        await self._send_command(mode="manual", temp=snapped)
-
-    async def async_set_fan_mode(self, fan_mode: str) -> None:  # NOSONAR - HA climate interface requires async def
+    def _validate_fan_speed(self, fan_mode: str) -> int:
+        """Validate a requested fan mode and return its Netatmo speed (CONTEXT: Unsupported Command Rule)."""
         if fan_mode not in (self._attr_fan_modes or []):
             raise ServiceValidationError(
                 f"Fan mode '{fan_mode}' is not supported. Supported: {self._attr_fan_modes}"
@@ -333,7 +364,10 @@ class NetatmoAcClimate(CoordinatorEntity[NacCoordinator], ClimateEntity):
         speed = _HA_FAN_TO_SPEED.get(fan_mode)
         if speed is None:
             raise ServiceValidationError(f"Fan mode '{fan_mode}' has no known speed mapping.")
+        return speed
 
+    async def async_set_fan_mode(self, fan_mode: str) -> None:  # NOSONAR - HA climate interface requires async def
+        speed = self._validate_fan_speed(fan_mode)
         endtime = int(time.time()) + self._override_duration
         try:
             await self._client.async_set_fan_speed(
@@ -347,7 +381,7 @@ class NetatmoAcClimate(CoordinatorEntity[NacCoordinator], ClimateEntity):
         except NetatmoApiError as err:
             raise HomeAssistantError(f"Fan command failed: {err}") from err
 
-        self.coordinator.trigger_burst(self._module.module_id, mode=None, temp=None)
+        self.coordinator.trigger_burst(self._module.module_id, mode=None, temp=None, fan_speed=speed)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_on(self) -> None:
@@ -356,6 +390,66 @@ class NetatmoAcClimate(CoordinatorEntity[NacCoordinator], ClimateEntity):
 
     async def async_turn_off(self) -> None:
         await self._send_command(mode="off", temp=None)
+
+    async def async_netatmo_set_state(
+        self,
+        hvac_mode: str | None = None,
+        temperature: float | None = None,
+        fan_mode: str | None = None,
+        duration: int | None = None,
+    ) -> None:
+        """Combined override: mode, temperature, fan, and a custom duration in one call.
+
+        CONTEXT: Combined Override Service Exception, Shared Override Duration Rule,
+        Off-Combination Validation Rule, Sequential Write Composition Rule.
+        """
+        if hvac_mode == HVACMode.OFF and (temperature is not None or fan_mode is not None):
+            raise ServiceValidationError(
+                "hvac_mode 'off' cannot be combined with temperature or fan_mode."
+            )
+
+        fan_speed = self._validate_fan_speed(fan_mode) if fan_mode is not None else None
+        cool_mode, cool_temp = self._resolve_cool_command(hvac_mode, temperature)
+        endtime = int(time.time()) + (duration * 60 if duration is not None else self._override_duration)
+
+        try:
+            if cool_mode is not None:
+                await self._client.async_set_cool_setpoint(
+                    home_id=self._module.home_id,
+                    room_id=self._module.room_id,
+                    mode=cool_mode,
+                    temp=cool_temp,
+                    endtime=endtime if cool_mode == "manual" else None,
+                )
+            if fan_speed is not None:
+                await self._client.async_set_fan_speed(
+                    home_id=self._module.home_id,
+                    module_id=self._module.module_id,
+                    fan_speed=fan_speed,
+                    endtime=endtime,
+                )
+        except NetatmoAuthError as err:
+            raise HomeAssistantError("Netatmo authentication failed. Please re-link the integration.") from err
+        except NetatmoApiError as err:
+            raise HomeAssistantError(f"Netatmo command failed: {err}") from err
+
+        self.coordinator.trigger_burst(
+            self._module.module_id, mode=cool_mode, temp=cool_temp, fan_speed=fan_speed
+        )
+        await self.coordinator.async_request_refresh()
+
+    def _resolve_cool_command(
+        self, hvac_mode: str | None, temperature: float | None
+    ) -> tuple[str | None, float | None]:
+        """Resolve the requested cooling mode/temperature, or (None, None) if unchanged."""
+        if hvac_mode == HVACMode.OFF:
+            return "off", None
+        if hvac_mode == HVACMode.COOL or temperature is not None:
+            if temperature is not None:
+                return "manual", self._validate_temperature(temperature)
+            target = self.target_temperature or ((self._module.temp_min + self._module.temp_max) / 2)
+            return "manual", target
+        return None, None
 
     # ------------------------------------------------------------------
     # Internal command sender

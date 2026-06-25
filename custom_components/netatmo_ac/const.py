@@ -22,6 +22,12 @@ UNAVAILABLE_THRESHOLD = 600       # 10 min → mark entity unavailable
 # --- Manual override duration (CONTEXT: Default Override Duration) ---
 DEFAULT_OVERRIDE_DURATION_MINUTES = 60   # shown to user in minutes
 DEFAULT_OVERRIDE_DURATION = DEFAULT_OVERRIDE_DURATION_MINUTES * 60  # stored in seconds
+MIN_OVERRIDE_DURATION_MINUTES = 5
+MAX_OVERRIDE_DURATION_MINUTES = 480
+
+# --- Combined override service (CONTEXT: Combined Override Service Exception) ---
+SERVICE_SET_STATE = "set_state"
+ATTR_DURATION = "duration"
 
 # --- Netatmo per-user rate limits (CONTEXT: Per-User Rate Constraint) ---
 RATE_LIMIT_PER_10S = 50
