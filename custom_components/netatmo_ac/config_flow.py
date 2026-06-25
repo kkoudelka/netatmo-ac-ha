@@ -32,6 +32,8 @@ from .const import (
     DEFAULT_OVERRIDE_DURATION,
     DEFAULT_OVERRIDE_DURATION_MINUTES,
     DOMAIN,
+    MAX_OVERRIDE_DURATION_MINUTES,
+    MIN_OVERRIDE_DURATION_MINUTES,
     OAUTH2_SCOPES,
 )
 
@@ -180,8 +182,8 @@ class OAuth2FlowHandler(
                 default=DEFAULT_OVERRIDE_DURATION_MINUTES,
             ): selector.selector({
                 "number": {
-                    "min": 5,
-                    "max": 480,
+                    "min": MIN_OVERRIDE_DURATION_MINUTES,
+                    "max": MAX_OVERRIDE_DURATION_MINUTES,
                     "step": 5,
                     "mode": "box",
                     "unit_of_measurement": "min",

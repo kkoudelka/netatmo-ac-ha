@@ -8,6 +8,7 @@ Unofficial Home Assistant custom integration for the **Netatmo Smart AC Controll
 
 - **On/Off and cooling setpoint** — set target temperature and toggle cooling mode
 - **Fan speed** — low / medium / high
+- **Combined override service** — `netatmo_ac.set_state` sets mode, temperature, and fan together with a custom override duration per call
 - **Adaptive polling** — 90 s baseline, bursts to 9 s for 60 s after each command
 - **Temperature sensor override** — use any HA sensor (or average multiple) instead of the NAC's built-in sensor
 - **Reauth flow** — re-authorise without losing your device selection
@@ -127,6 +128,11 @@ actions:
               entity_id: climate.ac_delonghi
             data:
               temperature: 22
+          - action: climate.set_fan_mode
+            target:
+              entity_id: climate.ac_delonghi
+            data:
+              fan_mode: high
       - conditions:
           - condition: trigger
             id: time_end
@@ -137,6 +143,29 @@ actions:
             data:
               hvac_mode: "off"
 ```
+
+### Setting mode, temperature, fan, and duration together
+
+The standard `climate.*` services above always use the configured **Override
+duration** (default 60 min) — there's no way to pass a custom duration through
+them. For automations that need a different override length per call, use
+`netatmo_ac.set_state` instead. It accepts any combination of `hvac_mode`,
+`temperature`, and `fan_mode` plus an optional `duration` (minutes) that
+overrides the configured default for that one command:
+
+```yaml
+action: netatmo_ac.set_state
+target:
+  entity_id: climate.ac_delonghi
+data:
+  hvac_mode: cool
+  temperature: 22
+  fan_mode: high
+  duration: 30
+```
+
+`hvac_mode: "off"` cannot be combined with `temperature` or `fan_mode` in the
+same call — send it on its own.
 
 ---
 

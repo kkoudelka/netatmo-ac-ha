@@ -20,7 +20,14 @@ from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 
-from .api import NetatmoApiClient, NetatmoAuthError, NetatmoRateLimitError, NacModule, NacState
+from .api import (
+    NETATMO_FAN_MODE_TO_SPEED,
+    NacModule,
+    NacState,
+    NetatmoApiClient,
+    NetatmoAuthError,
+    NetatmoRateLimitError,
+)
 from .const import (
     BURST_DURATION,
     PENDING_TIMEOUT,
@@ -41,6 +48,7 @@ class PendingCommand:
     """Tracks a write that has been sent but not yet confirmed by a poll."""
     target_mode: str | None
     target_temp: float | None
+    target_fan_speed: int | None = None
     issued_at: float = field(default_factory=time.monotonic)
 
     @property
@@ -173,20 +181,25 @@ class NacCoordinator(DataUpdateCoordinator[dict[str, NacState]]):
             if state is None:
                 continue
 
-            # Check if confirmed state matches the pending command
-            mode_confirmed = (
-                cmd.target_mode is None
-                or (cmd.target_mode == "off" and state.setpoint_mode == "off")
-                or (cmd.target_mode == "manual" and state.setpoint_mode == "manual")
-            )
-            temp_confirmed = (
-                cmd.target_temp is None
-                or (state.target_temp is not None and abs(state.target_temp - cmd.target_temp) < 0.6)
-            )
-
-            if mode_confirmed and temp_confirmed:
+            if self._is_confirmed(cmd, state):
                 _LOGGER.debug("Command for module %s confirmed by provider state.", module_id)
                 del self._pending[module_id]
+
+    @staticmethod
+    def _is_confirmed(cmd: PendingCommand, state: NacState) -> bool:
+        """Check confirmed provider state against a pending command (CONTEXT: Fan Confirmation Rule)."""
+        mode_confirmed = (
+            cmd.target_mode is None
+            or (cmd.target_mode == "off" and state.setpoint_mode == "off")
+            or (cmd.target_mode == "manual" and state.setpoint_mode == "manual")
+        )
+        temp_confirmed = (
+            cmd.target_temp is None
+            or (state.target_temp is not None and abs(state.target_temp - cmd.target_temp) < 0.6)
+        )
+        reported_fan_speed = state.fan_speed or NETATMO_FAN_MODE_TO_SPEED.get(state.fan_mode or "")
+        fan_confirmed = cmd.target_fan_speed is None or reported_fan_speed == cmd.target_fan_speed
+        return mode_confirmed and temp_confirmed and fan_confirmed
 
     # ------------------------------------------------------------------
     # Freshness helpers (used by climate entities)
@@ -207,10 +220,18 @@ class NacCoordinator(DataUpdateCoordinator[dict[str, NacState]]):
     # Post-command burst trigger
     # ------------------------------------------------------------------
 
-    def trigger_burst(self, module_id: str, mode: str, temp: float | None) -> None:
+    def trigger_burst(
+        self,
+        module_id: str,
+        mode: str | None,
+        temp: float | None,
+        fan_speed: int | None = None,
+    ) -> None:
         """Start burst cadence and register a pending command."""
         self._burst_until = time.monotonic() + BURST_DURATION
-        self._pending[module_id] = PendingCommand(target_mode=mode, target_temp=temp)
+        self._pending[module_id] = PendingCommand(
+            target_mode=mode, target_temp=temp, target_fan_speed=fan_speed
+        )
         self.update_interval = timedelta(seconds=POLL_INTERVAL_BURST)
         _LOGGER.debug(
             "Burst mode activated for home %s after command on module %s.",

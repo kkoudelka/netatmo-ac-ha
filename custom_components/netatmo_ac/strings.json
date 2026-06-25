@@ -77,5 +77,29 @@
         }
       }
     }
+  },
+  "services": {
+    "set_state": {
+      "name": "Set AC state",
+      "description": "Set mode, target temperature, and/or fan speed together with a custom override duration. Provide at least one of HVAC mode, temperature, or fan mode. HVAC mode 'off' cannot be combined with temperature or fan mode.",
+      "fields": {
+        "hvac_mode": {
+          "name": "HVAC mode",
+          "description": "Power off, or switch to cooling."
+        },
+        "temperature": {
+          "name": "Target temperature",
+          "description": "Target cooling temperature, in °C."
+        },
+        "fan_mode": {
+          "name": "Fan mode",
+          "description": "Fan speed."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long this override lasts, in minutes, before the Netatmo schedule resumes. Defaults to the integration's configured override duration if omitted."
+        }
+      }
+    }
   }
 }
