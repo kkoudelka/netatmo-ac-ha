@@ -116,3 +116,8 @@
 - Visibility Gap Rule: If API visibility does not expose AC-capable module types or controls, the integration cannot infer or control AC features and must surface a clear configuration diagnostic.
 - Module Type Interpretation: NAMain, NAModule1, and NAModule3 are documented Weather product module types, not Smart AC controller capability markers.
 - Product-Surface Ambiguity Rule: Presence of home topology alone does not imply Home + Control AC visibility for the current token.
+- Combined Override Service Exception: A custom service providing atomic mode/temperature/fan/duration control in one call is a proven exception to the Custom Service Scope deferral, since Home Assistant's standard climate services cannot express a per-command override duration.
+- Shared Override Duration Rule: When a single override command changes mode, target temperature, and fan speed together, one shared duration applies to all changed aspects rather than independent end times per aspect.
+- Off-Combination Validation Rule: A command requesting power-off together with a temperature or fan speed change in the same call is rejected as invalid input rather than silently honoring only the power-off.
+- Fan Confirmation Rule: Pending-command confirmation tracks the requested fan state in addition to mode and temperature, so fan-affecting commands are confirmed against provider state on the same terms as other commands.
+- Sequential Write Composition Rule: A command that changes both temperature/mode and fan state together is composed of two separate provider write requests issued as one user-facing command, since combined single-request provider behavior is unverified.
