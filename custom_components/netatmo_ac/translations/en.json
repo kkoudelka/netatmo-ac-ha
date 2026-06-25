@@ -1,0 +1,105 @@
+{
+  "config": {
+    "step": {
+      "pick_implementation": {
+        "title": "Choose authentication method"
+      },
+      "select_homes": {
+        "title": "Select homes",
+        "description": "Choose which Netatmo homes to monitor. All detected homes are pre-selected.",
+        "data": {
+          "home_ids": "Homes"
+        }
+      },
+      "select_modules": {
+        "title": "Select AC units",
+        "description": "Choose which Smart AC Controllers to expose in Home Assistant.",
+        "data": {
+          "module_ids": "AC units"
+        }
+      },
+      "override_duration": {
+        "title": "Settings",
+        "description": "Manual setpoint changes are time-bounded overrides. Set how long they last before the Netatmo schedule resumes.",
+        "data": {
+          "override_duration": "Manual override duration (minutes)"
+        }
+      }
+    },
+    "error": {
+      "no_nac_devices": "No Smart AC Controller devices were found in the selected homes.",
+      "cannot_connect": "Unable to connect to Netatmo. Check your network and try again.",
+      "invalid_auth": "Authentication failed. Please re-authorise your Netatmo account."
+    },
+    "abort": {
+      "already_configured": "This Netatmo account is already configured.",
+      "oauth_error": "Unexpected error during Netatmo authorisation.",
+      "no_url_available": "No redirect URL available. Check your Home Assistant external URL configuration.",
+      "reauth_successful": "Re-authorisation was successful.",
+      "no_nac_devices": "No Smart AC Controller (NAC) devices were found. Check that your Netatmo app has the read_home scope and that the AC Controller is paired in the Netatmo Control app.",
+      "cannot_connect": "Unable to connect to Netatmo. Check HA logs for details."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Netatmo AC options",
+        "description": "Configured AC unit(s): {module_names}",
+        "data": {
+          "override_duration": "Manual override duration (minutes)",
+          "temp_sensor_0": "Temperature source",
+          "temp_sensor_1": "Temperature source (unit 2)",
+          "temp_sensor_2": "Temperature source (unit 3)",
+          "temp_sensor_3": "Temperature source (unit 4)",
+          "temp_sensor_4": "Temperature source (unit 5)"
+        },
+        "data_description": {
+          "temp_sensor_0": "Override the temperature this AC reads. Pick one or more sensors — multiple readings are averaged. Leave empty to use the AC unit's built-in sensor.",
+          "temp_sensor_1": "Override the temperature read by unit 2. Leave empty to use its built-in sensor.",
+          "temp_sensor_2": "Override the temperature read by unit 3. Leave empty to use its built-in sensor.",
+          "temp_sensor_3": "Override the temperature read by unit 4. Leave empty to use its built-in sensor.",
+          "temp_sensor_4": "Override the temperature read by unit 5. Leave empty to use its built-in sensor."
+        }
+      }
+    }
+  },
+  "entity": {
+    "climate": {
+      "netatmo_ac": {
+        "state_attributes": {
+          "hvac_action": {
+            "state": {
+              "cooling": "Cooling",
+              "idle": "Idle",
+              "off": "Off"
+            }
+          }
+        }
+      }
+    }
+  },
+  "services": {
+    "set_state": {
+      "name": "Set AC state",
+      "description": "Set mode, target temperature, and/or fan speed together with a custom override duration. Provide at least one of HVAC mode, temperature, or fan mode. HVAC mode 'off' cannot be combined with temperature or fan mode.",
+      "fields": {
+        "hvac_mode": {
+          "name": "HVAC mode",
+          "description": "Power off, or switch to cooling."
+        },
+        "temperature": {
+          "name": "Target temperature",
+          "description": "Target cooling temperature, in °C."
+        },
+        "fan_mode": {
+          "name": "Fan mode",
+          "description": "Fan speed."
+        },
+        "duration": {
+          "name": "Duration",
+          "description": "How long this override lasts, in minutes, before the Netatmo schedule resumes. Defaults to the integration's configured override duration if omitted."
+        }
+      }
+    }
+  }
+}
