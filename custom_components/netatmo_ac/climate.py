@@ -80,9 +80,10 @@ _HA_FAN_TO_SPEED: dict[str, int] = {
 }
 
 # Combined override service schema (CONTEXT: Combined Override Service Exception)
+# Must be built via cv.make_entity_service_schema so entity_platform recognizes it
+# as an entity service schema (it stamps a marker checked by is_entity_service_schema).
 SET_STATE_SCHEMA = vol.All(
-    cv.has_at_least_one_key(ATTR_HVAC_MODE, ATTR_TEMPERATURE, ATTR_FAN_MODE),
-    vol.Schema({
+    cv.make_entity_service_schema({
         vol.Optional(ATTR_HVAC_MODE): vol.In([HVACMode.OFF, HVACMode.COOL]),
         vol.Optional(ATTR_TEMPERATURE): vol.Coerce(float),
         vol.Optional(ATTR_FAN_MODE): vol.In([FAN_LOW, FAN_MEDIUM, FAN_HIGH]),
@@ -91,6 +92,7 @@ SET_STATE_SCHEMA = vol.All(
             vol.Range(min=MIN_OVERRIDE_DURATION_MINUTES, max=MAX_OVERRIDE_DURATION_MINUTES),
         ),
     }),
+    cv.has_at_least_one_key(ATTR_HVAC_MODE, ATTR_TEMPERATURE, ATTR_FAN_MODE),
 )
 
 
