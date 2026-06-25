@@ -1,7 +1,7 @@
 {
   "domain": "netatmo_ac",
   "name": "Netatmo Smart AC Controller",
-  "version": "0.0.2-alpha.2",
+  "version": "0.0.2-alpha.3",
   "config_flow": true,
   "dependencies": ["application_credentials", "http"],
   "requirements": [],
